@@ -18,7 +18,7 @@ os.makedirs(dataset_dir, exist_ok=True)
 count = 0
 detecting_face = False  # Biến để theo dõi trạng thái nhận diện khuôn mặt
 
-while count < 100:  # Chụp 10 ảnh
+while count < 10:  # Chụp 10 ảnh
     # Capture the frame from the Picamera2
     frame = picam2.capture_array()
 
