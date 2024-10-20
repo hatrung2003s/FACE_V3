@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý Dataset Khuôn Mặt</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+</head>
+<body>
+    <div class="container mt-4">
+        <h1>Quản lý Dataset Khuôn Mặt</h1>
+        <!-- Nút Home -->
+        <!-- Form thêm người dùng -->
+        <form action="/add" method="POST" enctype="multipart/form-data" class="mt-4">
+            <div class="mb-3">
+                <label for="name" class="form-label">Tên người dùng</label>
+                <input type="text" class="form-control" id="name" name="name" placeholder="Nhập tên người dùng" required>
+            </div>
+            <div class="mb-3">
+                <label for="images" class="form-label">Tải lên ảnh khuôn mặt (có thể chọn nhiều ảnh)</label>
+                <input class="form-control" type="file" id="images" name="images" multiple required>
+            </div>
+            <button type="submit" class="btn btn-primary">Thêm người dùng</button>
+        </form>
+
+        <!-- Danh sách người dùng -->
+        <h2 class="mt-5">Danh sách người dùng</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Tên người dùng</th>
+                    <th>Hành động</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user.id }}</td>
+                    <td>{{ user.name }}</td>
+                    <td>
+                        <a href="/edit/{{ user.id }}" class="btn btn-warning btn-sm">Sửa</a>
+                        <a href="/delete/{{ user.id }}" class="btn btn-danger btn-sm" onclick="return confirm('Bạn có chắc chắn muốn xóa người dùng này?');">Xóa</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+
+    <!-- Toastr và SocketIO thông báo -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        toastr.options = {
+                            "closeButton": true,
+                            "progressBar": true,
+                            "positionClass": "toast-top-right",
+                            "timeOut": "5000"
+                        };
+                        toastr["{{ category }}"]("{{ message }}");
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            const socket = io();  // Kết nối với SocketIO
+
+            // Lắng nghe sự kiện 'model_updated' từ server
+            socket.on('model_updated', function(data) {
+                toastr.success(data.message, 'Thông báo');
+            });
+        });
+    </script>
+</body>
+</html>

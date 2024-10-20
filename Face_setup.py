@@ -1,11 +1,6 @@
 import os
-import cv2
 import pickle
 import face_recognition
-import numpy as np
-from sklearn import svm
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
 
 # Đường dẫn đến thư mục chứa hình ảnh khuôn mặt
 dataset_dir = '/home/admin/Desktop/FACE_V3/dataset'
@@ -34,26 +29,6 @@ for user_id in os.listdir(dataset_dir):
 
                 except Exception as e:
                     print(f"Không thể xử lý {image_path}: {e}")
-
-# Chia dữ liệu thành tập huấn luyện và tập kiểm tra
-X = list(all_face_encodings.values())
-y = list(all_face_encodings.keys())
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-# Huấn luyện mô hình SVM
-clf = svm.SVC(gamma='scale', probability=True)
-clf.fit(X_train, y_train)
-
-# Dự đoán trên tập kiểm tra
-y_pred = clf.predict(X_test)
-accuracy = accuracy_score(y_test, y_pred)
-print(f"Độ chính xác của mô hình: {accuracy:.2f}")
-
-# Lưu mô hình đã huấn luyện
-with open('face_recognition_model.pkl', 'wb') as model_file:
-    pickle.dump(clf, model_file)
-
-print("Mô hình đã được lưu thành công!")
 
 # Lưu dataset_faces.dat chứa tất cả các mã hóa khuôn mặt
 with open('dataset_faces.dat', 'wb') as dataset_file:

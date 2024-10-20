@@ -1,0 +1,2 @@
+sudo pip3 install git+https://github.com/pallets/flask-sqlalchemy.git --break-system-packages
+pip install flask-socketio --break-system-packages
