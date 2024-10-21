@@ -1,6 +1,11 @@
 import os
+import cv2
 import pickle
 import face_recognition
+import numpy as np
+from sklearn import svm
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
 
 # Đường dẫn đến thư mục chứa hình ảnh khuôn mặt
 dataset_dir = '/home/admin/Desktop/FACE_V3/dataset'
@@ -29,7 +34,6 @@ for user_id in os.listdir(dataset_dir):
 
                 except Exception as e:
                     print(f"Không thể xử lý {image_path}: {e}")
-
 # Lưu dataset_faces.dat chứa tất cả các mã hóa khuôn mặt
 with open('dataset_faces.dat', 'wb') as dataset_file:
     pickle.dump(all_face_encodings, dataset_file)

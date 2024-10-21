@@ -5,7 +5,6 @@ import face_recognition
 import numpy as np
 import RPi.GPIO as GPIO
 import time
-import os
 
 # Cấu hình GPIO
 GPIO.setmode(GPIO.BCM)
@@ -26,42 +25,22 @@ face_cascade = cv2.CascadeClassifier(haarcascade_path)
 if face_cascade.empty():
     print("Không thể tải mô hình Haar Cascade.")
     exit()
+# Đọc dữ liệu khuôn mặt đã lưu
+try:
+    with open('dataset_faces.dat', 'rb') as file:
+        all_face_encodings = pickle.load(file)
+except FileNotFoundError:
+    print("Tệp dữ liệu khuôn mặt không tồn tại.")
+    exit()
 
-# Đường dẫn đến dataset_faces.dat
-face_data_path = 'dataset_faces.dat'
-model_file_path = 'face_recognition_model.pkl'
-
-def load_face_data():
-    # Đọc dữ liệu khuôn mặt đã lưu
-    try:
-        with open(face_data_path, 'rb') as file:
-            all_face_encodings = pickle.load(file)
-        known_face_encodings = list(all_face_encodings.values())
-        known_face_ids = list(all_face_encodings.keys())
-        print("Đã tải dữ liệu khuôn mặt.")
-        return known_face_encodings, known_face_ids
-    except FileNotFoundError:
-        print("Tệp dữ liệu khuôn mặt không tồn tại.")
-        exit()
-
-def get_file_modification_time(file_path):
-    return os.path.getmtime(file_path)
-
-# Khởi tạo lần đầu
-known_face_encodings, known_face_ids = load_face_data()
-last_model_update_time = get_file_modification_time(face_data_path)
+# Chuyển đổi từ điển thành danh sách các encoding và ID
+known_face_encodings = list(all_face_encodings.values())
+known_face_ids = list(all_face_encodings.keys())
 
 # Ngưỡng khoảng cách tối đa để coi là trùng khớp
 face_recognition_threshold = 0.45  # Bạn có thể điều chỉnh ngưỡng này
 
 while True:
-    # Kiểm tra xem dataset_faces.dat có được cập nhật không
-    current_model_update_time = get_file_modification_time(face_data_path)
-    if current_model_update_time != last_model_update_time:
-        print("Phát hiện mô hình mới, tải lại dữ liệu khuôn mặt.")
-        known_face_encodings, known_face_ids = load_face_data()
-        last_model_update_time = current_model_update_time
-
     # Chụp frame từ Picamera2
     frame = picam2.capture_array()
 
@@ -86,29 +65,24 @@ while True:
             face_encoding = face_recognition.face_encodings(face_rgb)
 
             if len(face_encoding) > 0:  # Kiểm tra xem có encoding không
-                # So sánh với các encoding đã lưu trong dataset
+                # So sánh với các encoding đã lưu
                 distances = face_recognition.face_distance(known_face_encodings, face_encoding[0])
                 best_match_index = np.argmin(distances)  # Lấy chỉ số của khoảng cách nhỏ nhất
 
-                # Kiểm tra khoảng cách có nhỏ hơn ngưỡng không
+                # Kiểm tra xem khoảng cách có nhỏ hơn ngưỡng không
                 if distances[best_match_index] < face_recognition_threshold:
-                    dataset_name = known_face_ids[best_match_index]
-                else:
-                    dataset_name = "Unknown"
-
-                # Nếu khớp, mở khóa cửa
-                if dataset_name != "Unknown":
-                    print(f"Mở khóa cửa cho người dùng: {dataset_name}")
+                    name = known_face_ids[best_match_index]
+                    print(f"Mở khóa cửa cho người dùng: {name}")
                     GPIO.output(RELAY_PIN, GPIO.HIGH)
-                    time.sleep(5)  # Giữ khóa mở trong 5 giây
                     print("Khóa cửa lại.")
                     GPIO.output(RELAY_PIN, GPIO.LOW)
                 else:
-                    print("Không khớp. Cửa khóa.")
+                    name = "Unknown"
+                    print("Cửa khóa")
                     GPIO.output(RELAY_PIN, GPIO.LOW)
 
                 # Hiển thị ID trên khung hình
-                cv2.putText(frame_bgr, dataset_name, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+                cv2.putText(frame_bgr, name, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
     else:
         print("Không phát hiện khuôn mặt. Cửa khóa.")
         GPIO.output(RELAY_PIN, GPIO.LOW)
