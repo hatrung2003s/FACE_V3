@@ -74,6 +74,7 @@ while True:
                     name = known_face_ids[best_match_index]
                     print(f"Mở khóa cửa cho người dùng: {name}")
                     GPIO.output(RELAY_PIN, GPIO.HIGH)
+                    time.sleep(5)  # Giữ khóa mở trong 5 giây
                     print("Khóa cửa lại.")
                     GPIO.output(RELAY_PIN, GPIO.LOW)
                 else:

@@ -1,11 +1,12 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 import os
+from datetime import datetime
+
 import shutil
 import subprocess
 import threading
 from flask_socketio import SocketIO
-
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
 socketio = SocketIO(app)
@@ -224,7 +225,33 @@ def delete_user(id):
     except Exception as e:
         flash(f'Có lỗi xảy ra: {e}', 'danger')
         return redirect(url_for('index'))
+# Route để hiển thị tất cả ảnh trong thư mục user_images và lọc theo ngày
+@app.route('/detected_images', methods=['GET', 'POST'])
+def detected_images():
+    image_folder = 'user_images'
+    
+    # Lấy danh sách tất cả các ảnh trong thư mục
+    image_files = os.listdir(image_folder)
+    image_files = [f for f in image_files if f.lower().endswith(('jpg', 'jpeg', 'png'))]
+    
+    # Lọc theo ngày nếu người dùng gửi yêu cầu lọc
+    selected_date = request.args.get('date')
+    if selected_date:
+        try:
+            # Chuyển đổi ngày từ chuỗi sang định dạng datetime
+            selected_date_obj = datetime.strptime(selected_date, '%Y-%m-%d')
+            image_files = [f for f in image_files if selected_date in f]  # Lọc theo ngày trong tên ảnh
+        except ValueError:
+            # Nếu có lỗi khi chuyển đổi ngày, bỏ qua việc lọc
+            pass
 
+    # Hiển thị danh sách ảnh
+    return render_template('view_detected_images.html', image_files=image_files, selected_date=selected_date)
+
+# Route để phục vụ các tệp ảnh
+@app.route('/user_images/<filename>')
+def display_image(filename):
+    return send_from_directory('user_images', filename)
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
