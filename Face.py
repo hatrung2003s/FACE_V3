@@ -5,6 +5,37 @@ import face_recognition
 import numpy as np
 import RPi.GPIO as GPIO
 import time
+import os
+import threading
+import smtplib
+from email.message import EmailMessage
+import imghdr
+
+# Khai báo thông tin email
+Sender_email = "hatrung2003vt@gmail.com"
+Reciever_Email = "duongtuan1008@gmail.com"
+pass_sender = "aafj gckj dfsd eddd"
+
+# Hàm gửi email khi phát hiện xâm nhập (Unknown)
+def SendEmail(sender, pass_sender, receiver, image_path):
+    newMessage = EmailMessage()
+    newMessage['Subject'] = "CANH BAO !!!"
+    newMessage['From'] = sender
+    newMessage['To'] = receiver
+    newMessage.set_content('CANH BAO AN NINH - Phát hiện xâm nhập!')
+
+    with open(image_path, 'rb') as f:
+        image_data = f.read()
+        image_type = imghdr.what(f)
+        if image_type is None:
+            image_type = 'jpeg'
+        image_name = os.path.basename(f.name)
+        newMessage.add_attachment(image_data, maintype='image', subtype=image_type, filename=image_name)
+
+    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+        smtp.login(sender, pass_sender)
+        smtp.send_message(newMessage)
+    print(f"Email đã được gửi với ảnh đính kèm: {image_path}")
 
 # Cấu hình GPIO
 GPIO.setmode(GPIO.BCM)
@@ -25,6 +56,7 @@ face_cascade = cv2.CascadeClassifier(haarcascade_path)
 if face_cascade.empty():
     print("Không thể tải mô hình Haar Cascade.")
     exit()
+
 # Đọc dữ liệu khuôn mặt đã lưu
 try:
     with open('dataset_faces.dat', 'rb') as file:
@@ -39,6 +71,24 @@ known_face_ids = list(all_face_encodings.keys())
 
 # Ngưỡng khoảng cách tối đa để coi là trùng khớp
 face_recognition_threshold = 0.45  # Bạn có thể điều chỉnh ngưỡng này
+
+# Tạo thư mục lưu ảnh nếu chưa tồn tại
+output_dir = "user_images"
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+
+# Hàm để chụp và lưu ảnh trong luồng riêng
+def capture_and_save_image(frame, name):
+    # Tạo tên tệp với định dạng "Name_YYYY-MM-DD_HH-MM-SS.jpg"
+    timestamp = time.strftime('%Y-%m-%d_%H-%M-%S')
+    img_filename = f"{output_dir}/{name}_{timestamp}.jpg"
+    cv2.imwrite(img_filename, frame)
+    print(f"Ảnh đã được lưu: {img_filename}")
+    return img_filename  # Trả về đường dẫn ảnh
+
+# Hàm gửi email trong luồng riêng
+def send_email_thread(image_path):
+    SendEmail(Sender_email, pass_sender, Reciever_Email, image_path)
 
 while True:
     # Chụp frame từ Picamera2
@@ -74,13 +124,21 @@ while True:
                     name = known_face_ids[best_match_index]
                     print(f"Mở khóa cửa cho người dùng: {name}")
                     GPIO.output(RELAY_PIN, GPIO.HIGH)
-                    time.sleep(5)  # Giữ khóa mở trong 5 giây
+
+                    # Sử dụng luồng riêng để chụp và lưu ảnh
+                    threading.Thread(target=capture_and_save_image, args=(frame_bgr, name)).start()
+
                     print("Khóa cửa lại.")
                     GPIO.output(RELAY_PIN, GPIO.LOW)
                 else:
                     name = "Unknown"
-                    print("Cửa khóa")
-                    GPIO.output(RELAY_PIN, GPIO.LOW)
+                    print("Người dùng không xác định, cửa vẫn khóa.")
+
+                    # Chụp và lưu ảnh cho người không xác định
+                    img_filename = capture_and_save_image(frame_bgr, name)
+
+                    # Gửi email trong một luồng riêng
+                    threading.Thread(target=send_email_thread, args=(img_filename,)).start()
 
                 # Hiển thị ID trên khung hình
                 cv2.putText(frame_bgr, name, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
