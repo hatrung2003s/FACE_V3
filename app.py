@@ -247,11 +247,61 @@ def detected_images():
 
     # Hiển thị danh sách ảnh
     return render_template('view_detected_images.html', image_files=image_files, selected_date=selected_date)
+@app.route('/change_password', methods=['GET', 'POST'])
+def change_password():
+    password_file = "password.txt"
+    
+    if request.method == 'POST':
+        old_password = request.form['old_password']
+        new_password = request.form['new_password']
+        confirm_password = request.form['confirm_password']
+        
+        # Đọc mật khẩu hiện tại từ tệp
+        with open(password_file, 'r') as file:
+            current_password = file.readline().strip()
+
+        # Kiểm tra mật khẩu cũ có khớp không
+        if old_password != current_password:
+            flash('Mật khẩu cũ không đúng!', 'danger')
+            return redirect(url_for('change_password'))
+        
+        # Kiểm tra mật khẩu mới và xác nhận mật khẩu
+        if new_password != confirm_password:
+            flash('Mật khẩu xác nhận không khớp!', 'danger')
+            return redirect(url_for('change_password'))
+        
+        # Cập nhật mật khẩu mới
+        with open(password_file, 'w') as file:
+            file.write(new_password)
+
+        flash('Mật khẩu đã được thay đổi thành công!', 'success')
+        return redirect(url_for('index'))
+    
+    return render_template('change_password.html')
 
 # Route để phục vụ các tệp ảnh
 @app.route('/user_images/<filename>')
 def display_image(filename):
     return send_from_directory('user_images', filename)
+@app.route('/event_log')
+def event_log():
+    log_file = 'event_log.txt'
+    logs = []
+    
+    if os.path.exists(log_file):
+        with open(log_file, 'r') as file:
+            for line in file:
+                parts = line.strip().split('  ', 2)  # Phân tách theo khoảng trắng: thời gian, ngày, sự kiện
+                if len(parts) == 3:
+                    time = parts[0]
+                    date = parts[1]
+                    event = parts[2]
+                    logs.append({'time': time, 'date': date, 'event': event})
+    else:
+        logs = [{'time': 'N/A', 'date': 'N/A', 'event': 'Log file not found.'}]
+    
+    return render_template('event_log.html', logs=logs)
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()

@@ -10,30 +10,106 @@ import threading
 import smtplib
 from email.message import EmailMessage
 import imghdr
+from RPLCD.i2c import CharLCD
+# Khởi tạo màn hình LCD với địa chỉ I2C (thường là 0x27 hoặc 0x3F)
+lcd = CharLCD('PCF8574', 0x27, cols=16, rows=2)
+# Khai báo biến log_file là tệp .txt
+log_file = "event_log.txt"  # Đường dẫn tệp TXT để lưu nhật ký sự kiện
 
-ROW_PINS = [6, 13, 19, 26]  # Các chân cho hàng R1, R2, R3, R4
-COL_PINS = [12, 16, 20]  # Các chân cho cột C1, C2, C3, C4
-password_input = ''
-key_queue = queue.Queue()
-new_pass1 = [''] * 5
-new_pass2 = [''] * 5
-data_input = []
-# Bảng bàn phím 4x4
+# Hàm khởi tạo tệp TXT nếu tệp chưa tồn tại
+def init_log_file():
+    if not os.path.exists(log_file):  # Kiểm tra nếu tệp chưa tồn tại
+        with open(log_file, mode='w') as file:
+            file.write("Thời gian\t\t\tSự kiện\n")  # Ghi tiêu đề
+
+# Hàm ghi nhật ký sự kiện vào tệp TXT (Chỉ ghi sự kiện, không ghi chi tiết)
+def log_event(event_type):
+    with open(log_file, mode='a') as file:
+        timestamp = time.strftime('%H:%M:%S  %d-%m-%Y')  # Lấy thời gian hiện tại
+        file.write(f"{timestamp}  {event_type}\n")  # Ghi sự kiện vào tệp với 2 dấu cách
+    print(f"Đã ghi sự kiện: {event_type}")  # Thông báo đã ghi sự kiện
+# Bảng bàn phím 4x3
 KEYPAD = [
     ['1', '2', '3'],
     ['4', '5', '6'],
     ['7', '8', '9'],
     ['*', '0', '#']
 ]
+# Định nghĩa chân GPIO cho hàng và cột
+ROW_PINS = [6, 13, 19, 26]  # Các chân cho hàng R1, R2, R3, R4
+COL_PINS = [12, 16, 20]     # Các chân cho cột C1, C2, C3
+
+# Thiết lập GPIO
+GPIO.setmode(GPIO.BCM)
+
 # Thiết lập các chân hàng là output
 for row in ROW_PINS:
     GPIO.setup(row, GPIO.OUT)
-
 # Thiết lập các chân cột là input với pull-down resistor
 for col in COL_PINS:
     GPIO.setup(col, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+# Hàm để đọc mật khẩu từ tệp
+def read_password_from_file():
+    password_file = "password.txt"
+    if os.path.exists(password_file):
+        with open(password_file, 'r') as file:
+            password = file.readline().strip()  # Đọc dòng đầu tiên và bỏ các ký tự thừa
+            return password
+    else:
+        print("Tệp mật khẩu không tồn tại!")
+        return None
+# Hàm đọc phím từ bàn phím ma trận với debounce
+def read_keypad():
+    key_pressed = None
+    for i in range(len(ROW_PINS)):
+        GPIO.output(ROW_PINS[i], GPIO.HIGH)  # Kích hoạt hàng hiện tại
+
+        for j in range(len(COL_PINS)):
+            if GPIO.input(COL_PINS[j]) == GPIO.HIGH:  # Phát hiện nhấn phím
+                key_pressed = KEYPAD[i][j]  # Lưu lại phím đã nhấn
+                time.sleep(0.5)  # Thêm thời gian nghỉ để tránh xử lý lặp lại phím nhấn
+                while GPIO.input(COL_PINS[j]) == GPIO.HIGH:
+                    pass  # Đợi đến khi phím được thả ra
+
+        GPIO.output(ROW_PINS[i], GPIO.LOW)
+
+    return key_pressed  # Trả về phím đã nhấn
 
 
+# Hàm kiểm tra mật khẩu từ bàn phím với debounce
+def check_password():
+    password = read_password_from_file()  # Đọc mật khẩu từ tệp
+
+    if password is None:
+        print("Không thể kiểm tra mật khẩu vì tệp không tồn tại.")
+        return
+
+    entered_password = ""
+    print("Nhập mật khẩu:")
+    lcd.write_string("Nhap mat khau:")
+    
+    while len(entered_password) < len(password):
+        key = read_keypad()
+
+        if key:
+            print(f"Phím nhấn: {key}")
+            if key == '#':
+                print("Dừng nhập.")
+                break   
+            # Hiển thị "*" để ẩn mật khẩu khi người dùng nhập
+            entered_password += key
+            masked_password = "*" * len(entered_password)
+            time.sleep(0.2)  # Đợi thêm thời gian sau mỗi lần nhấn phím
+    time.sleep(2)
+    lcd.clear()
+    if entered_password == password:
+        print("Mật khẩu đúng!")
+        threading.Thread(target=unlock_door).start()  # Mở cửa nếu mật khẩu đúng
+        log_event("Mật khẩu đúng mở cửa")
+    else:
+        print("Mật khẩu sai!")
+        threading.Thread(target=lock_sound).start()  # Phát âm báo nếu sai
+        log_event("Mật khẩu sai cửa khóa")
 # Khai báo thông tin email
 Sender_email = "hatrung2003vt@gmail.com"
 Reciever_Email = "tett43644@gmail.com"
@@ -116,9 +192,18 @@ def send_email_thread(image_path):
 def unlock_door():
     GPIO.output(RELAY_PIN, GPIO.HIGH)  # Mở khóa cửa
     print("Relay mở - Cửa đã mở")
+    log_event("Mở cửa")    
+    # Hiển thị sự kiện lên màn hình LCD
+    lcd.write_string("Mo cua")
+    time.sleep(2)
+    lcd.clear()
     time.sleep(10)  # Đợi 10 giây
     GPIO.output(RELAY_PIN, GPIO.LOW)  # Khóa cửa lại
-    print("Relay đóng - Cửa đã khóa lại")
+    print("Cửa đóng lại")
+    log_event("Cửa đóng lại")
+    lcd.write_string("Cua dong lai")
+    time.sleep(2)
+    lcd.clear()
 
 def lock_sound():
     GPIO.output(RELAY_SOUND, GPIO.HIGH)  # Phát còi báo
@@ -131,13 +216,9 @@ last_recognition_time = {}
 # Thời gian giãn cách tối thiểu giữa các lần nhận diện (tính bằng giây)
 min_recognition_interval = 10  # Ví dụ: 10 giây
 # Khai báo thời gian chờ trước khi kết luận "Unknown" (ví dụ 1 giây)
-# Khai báo thời gian chờ trước khi xác định "Unknown" (tính bằng giây)
 delay_before_unknown = 5  # Ví dụ: 1 giây
-
 # Cờ để xác định xem có phải đã qua thời gian đợi trước khi xác định "Unknown" hay không
 unknown_timeout_flag = False
-# Hàm ki?m tra xem khuôn m?t có kh?p không, tr? v? True n?u kh?p, False n?u không
-# Hàm ki?m tra xem khuôn m?t có kh?p không, tr? v? True n?u kh?p, False n?u không
 # Hàm kiểm tra xem khuôn mặt có khớp không, trả về True nếu khớp, False nếu không
 def check_face_recognition(face_encoding):
     distances = face_recognition.face_distance(known_face_encodings, face_encoding)
@@ -181,20 +262,18 @@ while True:
                     current_time = time.time()
                     if name not in last_recognition_time or (current_time - last_recognition_time[name]) > min_recognition_interval:
                         print(f"Mở khóa cửa cho người dùng: {name}")
+                        log_event(f"Cửa mở cho: {name}")
                         last_recognition_time[name] = current_time  # Cập nhật thời gian nhận diện
                         threading.Thread(target=unlock_door).start()
-
                         # Sử dụng luồng riêng để chụp và lưu ảnh
                         img_filename = capture_and_save_image(frame_bgr, name)
-
+                        
                 else:
                     # Đợi trước khi kết luận là "Unknown"
                     if not unknown_timeout_flag:
                         start_unknown_time = time.time()
                         unknown_timeout_flag = True  # Đặt cờ để bắt đầu đợi
-
                     elapsed_time = time.time() - start_unknown_time
-
                     # Đợi đến khi thời gian đã trôi qua để xác định là "Unknown"
                     if elapsed_time >= delay_before_unknown:
                         # Kiểm tra lại trước khi thực sự kết luận là "Unknown"
@@ -204,11 +283,11 @@ while True:
                             current_time = time.time()
                             if "Unknown" not in last_recognition_time or (current_time - last_recognition_time["Unknown"]) > min_recognition_interval:
                                 last_recognition_time["Unknown"] = current_time  # Cập nhật thời gian nhận diện
+                                log_event("Người dùng không xác định")
                                 threading.Thread(target=lock_sound).start()
-
-                                # Chụp và lưu ảnh cho người không xác định
-                                img_filename = capture_and_save_image(frame_bgr, name)
+                                img_filename = capture_and_save_image(frame_bgr, name)# Chụp và lưu ảnh cho người không xác định
                                 threading.Thread(target=send_email_thread, args=(img_filename,)).start()
+                                threading.Thread(target=check_password).start()
 
                 # Hiển thị ID trên khung hình
                 cv2.putText(frame_bgr, name, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)

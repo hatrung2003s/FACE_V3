@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sự kiện</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            background-color: white;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 800px;
+            max-height: 80vh; /* Giới hạn chiều cao của container */
+            overflow-y: auto; /* Bật cuộn dọc nếu nội dung vượt quá chiều cao */
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+
+        .log-entry {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            font-size: 16px;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-time-date {
+            font-weight: bold;
+            color: #555;
+            width: 30%; /* Chiếm 30% chiều ngang */
+        }
+
+        .log-event {
+            font-style: italic;
+            color: #666;
+            width: 70%; /* Chiếm 70% chiều ngang */
+            text-align: right;
+        }
+
+        @media (max-width: 600px) {
+            .log-entry {
+                flex-direction: column;
+                text-align: left;
+            }
+
+            .log-time-date, .log-event {
+                width: 100%; /* Chiếm toàn bộ chiều ngang khi ở chế độ di động */
+                text-align: left; /* Căn trái trên thiết bị di động */
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Sự kiện</h1>
+        <div id="log-container">
+            {% for log in logs %}
+            <div class="log-entry">
+                <!-- Hiển thị ngày trước, thời gian sau -->
+                <span class="log-time-date">{{ log.date }} {{ log.time }}</span>
+                <span class="log-event">{{ log.event }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+</html>
